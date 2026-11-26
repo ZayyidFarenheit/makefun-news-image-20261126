@@ -216,7 +216,7 @@ DATECHECK_LEFT = [
 ]
 DATECHECK_RIGHT = [
     "Houthi claim on Ras Tanura refinery — 25 Nov",
-    "Cairo tanker fire kills 30 — 25 Nov",
+    "Cairo tanker fire kills 31 — 25 Nov",
     "Hera's Dimorphos crater pictures — 25 Nov",
     "Sooryavanshi smashes 204 off 53 — 24 Nov",
     "Nvidia reinstates Jensen Huang — 24 Nov",
