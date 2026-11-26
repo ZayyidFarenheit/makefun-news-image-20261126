@@ -21,13 +21,13 @@ genuinely 26 November (the Macy's parade postponement, India's 26/11
 anniversary and Constitution Day, and Gukesh-Sindarov Game 3 at 15:00
 CET -- Friday 27 November is the rest day).
 
-Method is hybrid: the three hero illustrations are AI-generated and
-composited into the PIL template; the ten grid scenes are small flat
-PIL drawings; all text, layout, map and lists are drawn here.
+Method is fully drawn: all thirteen scenes are flat PIL illustrations
+in one consistent newspaper style (muted palette, simple clean shapes,
+like the rank-1 winner); all text, layout, map and lists are drawn here.
 
-Deterministic: no network, no randomness, no timestamps. Pure Pillow
-plus three AI-generated hero illustrations composited in.
+Deterministic: no network, no randomness, no timestamps. Pure Pillow.
 """
+import math
 import os
 
 from PIL import Image, ImageDraw, ImageFont
@@ -133,17 +133,17 @@ TOP3 = [
          headline="Macy's 100th Thanksgiving parade postponed to Saturday",
          deck="A nor'easter brings 60 mph gusts to New York; the parade "
               "moves to Saturday, a first in 100 years.",
-         ill="parade", vshift=0.45),
+         ill="parade"),
     dict(num=2, tag="CONFIRMED", source="PTI",
          headline="India marks 18 years since the 26/11 Mumbai attacks",
          deck="Tributes across India on the anniversary, as the nation "
               "also marks 77 years of its Constitution.",
-         ill="india", vshift=0.35),
+         ill="india"),
     dict(num=3, tag="ONGOING", source="FIDE",
          headline="Gukesh meets Sindarov in Game 3 of the title match",
          deck="The world championship is level after two draws; Game 3 "
               "is played in Geneva today.",
-         ill="chess", vshift=0.5),
+         ill="chess"),
 ]
 
 GRID = [
@@ -239,8 +239,10 @@ PINS = {
     13: (160.0, -9.4, BROWN),
 }
 # Pixel nudges (dx, dy) for pins that would overlap a neighbour; a thin
-# leader line joins the badge to the pin's true position.
-NUDGE = {5: (-12, -2), 8: (20, 6), 9: (-14, 10), 11: (2, -12), 12: (-8, -10)}
+# leader line joins the badge to the pin's true position. Spread so no
+# two badges are closer than ~20px centre-to-centre.
+NUDGE = {5: (2, -18), 6: (-14, 18), 7: (14, -14), 8: (22, 2),
+         9: (-20, 14), 10: (6, 14), 11: (-2, -16), 12: (-26, -4)}
 
 # Simplified continent outlines in (lon, lat).
 CONTINENTS = [
@@ -279,31 +281,9 @@ CONTINENTS = [
 ]
 
 
-# ------------------------------------------------------- hybrid hero art
-_HERE = os.path.dirname(os.path.abspath(__file__))
-_HERO_FILES = {"parade": "hero_parade.webp", "india": "hero_india.webp",
-               "chess": "hero_chess.webp"}
-_HERO_CACHE = {}
-
-
-def _hero_box(name, w, h, vshift=0.5):
-    """Generated illustration cropped to the hero box aspect, resized."""
-    key = (name, w, h, vshift)
-    if key not in _HERO_CACHE:
-        src = Image.open(os.path.join(_HERE, _HERO_FILES[name]))
-        src = src.convert("RGB")
-        sw, sh = src.size
-        target = w / h
-        if sw / sh > target:
-            nw = int(sh * target)
-            left = (sw - nw) // 2
-            src = src.crop((left, 0, left + nw, sh))
-        else:
-            nh = int(sw / target)
-            top = int((sh - nh) * vshift)
-            src = src.crop((0, top, sw, top + nh))
-        _HERO_CACHE[key] = src.resize((w, h), Image.LANCZOS)
-    return _HERO_CACHE[key]
+# ------------------------------------------------------- hero illustrations
+# All three heroes are flat PIL drawings in the same visual language
+# as the grid scenes (muted newspaper palette, simple clean shapes).
 
 
 def _num_badge(d, x, y, num):
@@ -334,7 +314,35 @@ def _chip(d, x, y, text, size=8, fg=(255, 255, 255), bg=(30, 30, 30)):
 
 
 def ill_parade(img, d, x, y, w, h):
-    img.paste(_hero_box("parade", w, h, 0.45), (x, y))
+    # Flat night skyline with a white parade balloon, like rank 1.
+    d.rectangle([x, y, x + w, y + h], fill=(26, 42, 74))
+    # Rain streaks.
+    for rx, ry, rl in ((40, 8, 12), (90, 22, 10), (150, 6, 12),
+                       (210, 18, 10), (260, 10, 12), (300, 26, 10)):
+        d.line([x + rx, y + ry, x + rx - 4, y + ry + rl],
+               fill=(110, 140, 185), width=1)
+    # Skyline silhouettes with lit windows.
+    for bx, bw, bh in ((0, 34, 30), (38, 22, 44), (64, 30, 26),
+                       (98, 26, 52), (128, 34, 34), (166, 24, 48),
+                       (194, 30, 28), (228, 26, 56), (258, 30, 36),
+                       (292, 36, 46)):
+        d.rectangle([x + bx, y + h - bh, x + bx + bw, y + h],
+                    fill=(14, 24, 48))
+        for wx in range(bx + 5, bx + bw - 3, 9):
+            for wy in range(h - bh + 5, h - 4, 10):
+                d.rectangle([x + wx, y + wy, x + wx + 2, y + wy + 3],
+                            fill=(247, 190, 60))
+    # White parade balloon.
+    cx, cy = x + 130, y + 34
+    d.ellipse([cx - 46, cy - 26, cx + 46, cy + 26], fill=(255, 255, 255))
+    d.ellipse([cx - 18, cy - 8, cx - 12, cy - 2], fill=(20, 20, 20))
+    d.ellipse([cx + 12, cy - 8, cx + 18, cy - 2], fill=(20, 20, 20))
+    d.arc([cx - 14, cy - 2, cx + 14, cy + 16], start=15, end=165,
+          fill=(200, 40, 40), width=2)
+    # Small clouds.
+    for ccx, ccy in ((250, 18), (270, 24)):
+        d.ellipse([x + ccx, y + ccy, x + ccx + 26, y + ccy + 10],
+                  fill=(220, 228, 240))
     _chip(d, x + 6, y + h - 22, "POSTPONED TO SATURDAY", 9,
           fg=(255, 255, 255), bg=REDK)
     d.ellipse([x + w - 40, y + h - 40, x + w - 6, y + h - 6],
@@ -344,13 +352,86 @@ def ill_parade(img, d, x, y, w, h):
 
 
 def ill_india(img, d, x, y, w, h):
-    img.paste(_hero_box("india", w, h, 0.35), (x, y))
+    # Flat Gateway of India at sunset, diya candles below, tricolour.
+    d.rectangle([x, y, x + w, y + h], fill=(232, 164, 76))
+    d.rectangle([x, y + 62, x + w, y + h], fill=(240, 190, 120))
+    # Sun, left.
+    d.ellipse([x + 10, y + 8, x + 50, y + 48], fill=(247, 210, 120))
+    # Gateway monument (dark terracotta silhouette).
+    mx0, mx1 = x + 96, x + 232
+    d.rectangle([mx0, y + 30, mx1, y + h], fill=(150, 80, 45))
+    # Side towers with small domes.
+    for tx in (mx0 - 26, mx1 + 2):
+        d.rectangle([tx, y + 52, tx + 24, y + h], fill=(150, 80, 45))
+        d.pieslice([tx - 2, y + 44, tx + 26, y + 60], start=180, end=360,
+                   fill=(150, 80, 45))
+    # Main dome and finial.
+    d.pieslice([mx0 + 44, y + 14, mx0 + 92, y + 46], start=180, end=360,
+               fill=(150, 80, 45))
+    d.rectangle([mx0 + 62, y + 8, mx0 + 74, y + 18], fill=(150, 80, 45))
+    # Big arch opening in sky colour.
+    d.rectangle([mx0 + 46, y + 56, mx0 + 90, y + h], fill=(240, 190, 120))
+    d.pieslice([mx0 + 46, y + 34, mx0 + 90, y + 78], start=180, end=360,
+               fill=(240, 190, 120))
+    # Small arched niches.
+    for nx in (mx0 + 10, mx1 - 30):
+        d.rectangle([nx, y + 62, nx + 18, y + h], fill=(120, 60, 35))
+        d.pieslice([nx, y + 53, nx + 18, y + 71], start=180, end=360,
+                   fill=(120, 60, 35))
+    # Row of diya candles in the clear zones left and right.
+    for fx in (x + 10, x + 24, x + 38, x + 52, x + 268, x + 282, x + 296):
+        d.ellipse([fx, y + h - 16, fx + 8, y + h - 8], fill=(247, 190, 60))
+        d.polygon([(fx + 4, y + h - 24), (fx + 1, y + h - 16),
+                   (fx + 7, y + h - 16)], fill=(255, 120, 30))
+    # Tricolour flag on a pole, top right.
+    d.rectangle([x + w - 32, y + 26, x + w - 30, y + 62], fill=(60, 60, 60))
+    d.rectangle([x + w - 30, y + 28, x + w - 4, y + 34], fill=(255, 153, 51))
+    d.rectangle([x + w - 30, y + 34, x + w - 4, y + 40], fill=(255, 255, 255))
+    d.rectangle([x + w - 30, y + 40, x + w - 4, y + 46], fill=(19, 136, 8))
+    d.ellipse([x + w - 19, y + 34, x + w - 13, y + 40], fill=(20, 60, 140))
     _chip(d, x + w - 78, y + 6, "18 YEARS", 9,
           fg=(255, 255, 255), bg=(20, 20, 20))
 
 
 def ill_chess(img, d, x, y, w, h):
-    img.paste(_hero_box("chess", w, h, 0.5), (x, y))
+    # Flat chessboard on a dark green table, like rank 1.
+    d.rectangle([x, y, x + w, y + h], fill=(24, 58, 44))
+    # Board: 8x8 squares of 11px.
+    bx, by, s = x + 14, y + 2, 11
+    for r in range(8):
+        for c in range(8):
+            col = (238, 228, 200) if (r + c) % 2 == 0 else (70, 120, 92)
+            d.rectangle([bx + c * s, by + r * s,
+                         bx + (c + 1) * s, by + (r + 1) * s], fill=col)
+    d.rectangle([bx, by, bx + 8 * s, by + 8 * s], outline=(200, 180, 140),
+                width=2)
+
+    def _pawn(px, py, col):
+        d.ellipse([px - 3, py - 8, px + 3, py - 2], fill=col)
+        d.polygon([(px - 4, py - 2), (px + 4, py - 2), (px + 5, py),
+                   (px - 5, py)], fill=col)
+
+    def _king(px, py, col):
+        d.rectangle([px - 1, py - 13, px + 1, py - 8], fill=col)
+        d.rectangle([px - 3, py - 11, px + 3, py - 9], fill=col)
+        d.ellipse([px - 3, py - 8, px + 3, py - 2], fill=col)
+        d.polygon([(px - 4, py - 2), (px + 4, py - 2), (px + 5, py),
+                   (px - 5, py)], fill=col)
+
+    # (col, row) squares; py is the square's bottom edge.
+    _king(bx + 4 * s + 5, by + 7 * s + 10, (245, 245, 240))
+    _pawn(bx + 5 * s + 5, by + 6 * s + 10, (245, 245, 240))
+    _king(bx + 3 * s + 5, by + 1 * s + 10, (20, 20, 20))
+    _pawn(bx + 2 * s + 5, by + 2 * s + 10, (20, 20, 20))
+    # A large white king standing on the table fills the middle.
+    kx, kb = x + 162, y + h - 8
+    d.polygon([(kx - 16, kb), (kx + 16, kb), (kx + 11, kb - 8),
+               (kx - 11, kb - 8)], fill=(245, 245, 240))
+    d.rectangle([kx - 7, kb - 30, kx + 7, kb - 8], fill=(245, 245, 240))
+    d.ellipse([kx - 10, kb - 34, kx + 10, kb - 26], fill=(245, 245, 240))
+    d.ellipse([kx - 9, kb - 48, kx + 9, kb - 32], fill=(245, 245, 240))
+    d.rectangle([kx - 1, kb - 58, kx + 1, kb - 46], fill=(245, 245, 240))
+    d.rectangle([kx - 6, kb - 53, kx + 6, kb - 51], fill=(245, 245, 240))
     _chip(d, x + w - 66, y + 6, "GAME 3", 9,
           fg=(255, 255, 255), bg=REDK)
     # Two clock faces and the score, like rank 1's hero.
@@ -362,8 +443,8 @@ def ill_chess(img, d, x, y, w, h):
            fill=(20, 20, 20), anchor="mm")
     d.text((x + w - 34, y + h - 18), "1:32", font=font(SANS_B, 11),
            fill=(20, 20, 20), anchor="mm")
-    d.rectangle([x + 6, y + h - 22, x + 128, y + h - 6], fill=(20, 40, 30))
-    d.text((x + 67, y + h - 14), "GUKESH 1 – 1 SINDAROV",
+    d.rectangle([x + 6, y + h - 14, x + 128, y + h - 2], fill=(20, 40, 30))
+    d.text((x + 67, y + h - 8), "GUKESH 1 – 1 SINDAROV",
            font=font(SANS_B, 9), fill=(255, 255, 255), anchor="mm")
 
 
@@ -371,6 +452,33 @@ HERO_ILL = {"parade": ill_parade, "india": ill_india, "chess": ill_chess}
 
 
 # ------------------------------------------------------- grid illustrations
+def _rocket(d, cx, cy, ang):
+    """Small rocket silhouette centred at (cx, cy), nose pointing along
+    angle ang (degrees, 0 = east, -90 = north)."""
+    a = math.radians(ang)
+    ux, uy = math.cos(a), math.sin(a)    # nose direction
+    vx, vy = -uy, ux                     # perpendicular
+    nose = (cx + 13 * ux, cy + 13 * uy)
+    b1 = (cx + 2 * ux + 4 * vx, cy + 2 * uy + 4 * vy)
+    b2 = (cx - 10 * ux + 4 * vx, cy - 10 * uy + 4 * vy)
+    b3 = (cx - 10 * ux - 4 * vx, cy - 10 * uy - 4 * vy)
+    b4 = (cx + 2 * ux - 4 * vx, cy + 2 * uy - 4 * vy)
+    d.polygon([nose, b1, b2, b3, b4], fill=(235, 235, 235))
+    # Red fins and a gold flame behind.
+    d.polygon([(cx - 7 * ux + 4 * vx, cy - 7 * uy + 4 * vy),
+               (cx - 13 * ux + 9 * vx, cy - 13 * uy + 9 * vy),
+               (cx - 11 * ux + 4 * vx, cy - 11 * uy + 4 * vy)],
+              fill=(200, 40, 40))
+    d.polygon([(cx - 7 * ux - 4 * vx, cy - 7 * uy - 4 * vy),
+               (cx - 13 * ux - 9 * vx, cy - 13 * uy - 9 * vy),
+               (cx - 11 * ux - 4 * vx, cy - 11 * uy - 4 * vy)],
+              fill=(200, 40, 40))
+    d.polygon([(cx - 10 * ux, cy - 10 * uy),
+               (cx - 18 * ux + 2 * vx, cy - 18 * uy + 2 * vy),
+               (cx - 18 * ux - 2 * vx, cy - 18 * uy - 2 * vy)],
+              fill=(247, 190, 60))
+
+
 def ill_missile(d, x, y, w, h):
     d.rectangle([x, y, x + w, y + h], fill=(18, 26, 44))
     # City skyline along the bottom.
@@ -379,21 +487,23 @@ def ill_missile(d, x, y, w, h):
                        (158, 26, 14), (186, 8, 34)):
         d.rectangle([x + bx, y + h - bh, x + bx + bw, y + h],
                     fill=(48, 58, 78))
-    # Two interceptor trails arcing up, meeting in a burst.
-    d.line([x + 20, y + h - 6, x + 95, y + 12], fill=(220, 230, 255),
+    # Two interceptor trails rising to a burst below the chip.
+    d.line([x + 20, y + h - 6, x + 100, y + 26], fill=(220, 230, 255),
            width=2)
-    d.line([x + 178, y + h - 6, x + 105, y + 12], fill=(220, 230, 255),
+    d.line([x + 178, y + h - 6, x + 100, y + 26], fill=(220, 230, 255),
            width=2)
     for dx, dy in ((0, 0), (-7, 3), (7, 3), (0, -7), (-5, -5), (5, -5)):
-        d.line([x + 100 + dx, y + 12 + dy, x + 100, y + 12],
+        d.line([x + 100 + dx, y + 26 + dy, x + 100, y + 26],
                fill=(255, 200, 80), width=2)
+    # Two clear interceptor rockets mid-trail, noses toward the burst.
+    _rocket(d, x + 58, y + 38, -16)
+    _rocket(d, x + 142, y + 38, -164)
     _chip(d, x + 30, y + 4, "2 MISSILES DOWNED", 8)
 
 
 def ill_summit(d, x, y, w, h):
     d.rectangle([x, y, x + w, y + h], fill=(31, 58, 95))
     # Ring of EU stars.
-    import math
     cx, cy = x + w // 2, y + h // 2 - 2
     for k in range(12):
         a = 2 * math.pi * k / 12 - math.pi / 2
@@ -411,14 +521,33 @@ def ill_summit(d, x, y, w, h):
 
 def ill_gaza(d, x, y, w, h):
     d.rectangle([x, y, x + w, y + h], fill=(214, 204, 182))
-    # Damaged block, smoke rising.
-    d.rectangle([x + 30, y + 22, x + 90, y + h], fill=(120, 105, 85))
-    d.rectangle([x + 96, y + 34, x + 150, y + h], fill=(95, 82, 66))
-    d.rectangle([x + 156, y + 26, x + 196, y + h], fill=(120, 105, 85))
-    for sx, sy, r in ((58, 12, 12), (72, 6, 9), (130, 16, 11),
-                      (146, 8, 8), (176, 14, 10)):
+    # Street scene: three flat buildings with windows; the middle one
+    # damaged, a little smoke above its roofline only.
+    d.rectangle([x + 12, y + 18, x + 66, y + h], fill=(168, 140, 110))
+    for wx in (22, 40):
+        for wy in (26, 38):
+            d.rectangle([x + wx, y + wy, x + wx + 8, y + wy + 7],
+                        fill=(60, 50, 40))
+    # Middle damaged building with a broken top corner.
+    d.rectangle([x + 74, y + 26, x + 126, y + h], fill=(140, 116, 88))
+    d.polygon([(x + 104, y + 26), (x + 126, y + 26), (x + 126, y + 40)],
+              fill=(214, 204, 182))
+    for wx in (82, 102):
+        d.rectangle([x + wx, y + 34, x + wx + 8, y + 41], fill=(60, 50, 40))
+    # Rubble at its base.
+    for rx, rw in ((74, 10), (88, 8), (102, 12)):
+        d.rectangle([x + rx, y + h - 6, x + rx + rw, y + h],
+                    fill=(95, 82, 66))
+    # Right building.
+    d.rectangle([x + 134, y + 20, x + 182, y + h], fill=(168, 140, 110))
+    for wx in (142, 160):
+        for wy in (28, 40):
+            d.rectangle([x + wx, y + wy, x + wx + 8, y + wy + 7],
+                        fill=(60, 50, 40))
+    # Two small smoke puffs above the damaged roof.
+    for sx, sy, r in ((100, 14, 6), (112, 8, 5)):
         d.ellipse([x + sx - r, y + sy - r, x + sx + r, y + sy + r],
-                  fill=(90, 90, 90))
+                  fill=(120, 120, 120))
     _chip(d, x + 30, y + 4, "GAZA CITY", 8)
 
 
@@ -458,32 +587,63 @@ def ill_power(d, x, y, w, h):
 
 def ill_tariffs(d, x, y, w, h):
     d.rectangle([x, y, x + w, y + h], fill=(238, 232, 214))
-    # Stacked shipping containers.
-    cols = [(200, 60, 50), (32, 96, 138), (45, 124, 78), (212, 137, 31)]
-    for i, col in enumerate(cols):
-        bx = x + 12 + i * 46
-        d.rectangle([bx, y + 26, bx + 42, y + 50], fill=col)
-        d.text((bx + 21, y + 38), "%", font=font(SANS_B, 12),
-               fill=(255, 255, 255), anchor="mm")
     d.text((x + 30, y + 4), "14 PARTNERS", font=font(SANS_B, 11),
            fill=REDK)
-    # Rising arrow.
-    d.line([x + 12, y + h - 6, x + 180, y + 12], fill=REDK, width=2)
-    d.polygon([(x + 180, y + 12), (x + 168, y + 12), (x + 180, y + 24)],
-              fill=REDK)
+    # Four flag chips in a row: US, EU, China, Japan. No arrow.
+    for i, code in enumerate(("us", "eu", "cn", "jp")):
+        fx = x + 10 + i * 46
+        fy = y + 26
+        base = {"us": (255, 255, 255), "eu": (30, 60, 140),
+                "cn": (200, 40, 40), "jp": (255, 255, 255)}[code]
+        d.rectangle([fx, fy, fx + 40, fy + 24], fill=base,
+                    outline=(120, 120, 120))
+        if code == "us":
+            for sy in (fy + 3, fy + 9, fy + 15, fy + 21):
+                d.rectangle([fx, sy, fx + 40, sy + 2], fill=(200, 40, 40))
+            d.rectangle([fx, fy, fx + 16, fy + 12], fill=(30, 60, 140))
+            d.ellipse([fx + 6, fy + 4, fx + 10, fy + 8],
+                      fill=(255, 255, 255))
+        elif code == "eu":
+            for sx, sy in ((fx + 12, fy + 7), (fx + 28, fy + 7),
+                           (fx + 12, fy + 17), (fx + 28, fy + 17)):
+                d.ellipse([sx - 1, sy - 1, sx + 1, sy + 1],
+                          fill=(247, 190, 60))
+        elif code == "cn":
+            d.polygon([(fx + 10, fy + 4), (fx + 12, fy + 9),
+                       (fx + 17, fy + 9), (fx + 13, fy + 12),
+                       (fx + 14, fy + 17), (fx + 10, fy + 14),
+                       (fx + 6, fy + 17), (fx + 7, fy + 12),
+                       (fx + 3, fy + 9), (fx + 8, fy + 9)],
+                      fill=(247, 190, 60))
+        else:  # jp
+            d.ellipse([fx + 14, fy + 6, fx + 26, fy + 18],
+                      fill=(200, 40, 40))
 
 
 def ill_taiwan(d, x, y, w, h):
-    d.rectangle([x, y, x + w, y + h], fill=(20, 30, 46))
-    # Silicon wafer with circuit traces.
-    d.ellipse([x + 62, y + 2, x + 134, y + h - 2], fill=(90, 110, 150))
-    d.ellipse([x + 74, y + 10, x + 122, y + h - 10], fill=(120, 145, 185))
-    for gx in range(78, 122, 11):
-        d.line([x + gx, y + 12, x + gx, y + h - 12],
+    d.rectangle([x, y, x + w, y + h], fill=(225, 232, 240))
+    # Semiconductor wafer: big disc, fine grid clipped to the disc,
+    # a chip square in the centre, traces running off right.
+    cx, cy, r = x + 66, y + 30, 22
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(150, 170, 200),
+              outline=(90, 110, 140), width=2)
+    for off in (-16, -8, 0, 8, 16):
+        half = int(math.sqrt(max(0, (r - 2) ** 2 - off ** 2)))
+        d.line([cx + off, cy - half, cx + off, cy + half],
                fill=(200, 210, 230), width=1)
-    for gy in range(14, 50, 11):
-        d.line([x + 76, y + gy, x + 120, y + gy],
+        d.line([cx - half, cy + off, cx + half, cy + off],
                fill=(200, 210, 230), width=1)
+    d.ellipse([cx - 15, cy - 15, cx + 15, cy + 15],
+              outline=(120, 145, 180), width=1)
+    d.rectangle([cx - 6, cy - 6, cx + 6, cy + 6], fill=(30, 50, 80))
+    for px, py in ((cx - 9, cy), (cx + 9, cy), (cx, cy - 9), (cx, cy + 9)):
+        d.ellipse([px - 1, py - 1, px + 1, py + 1], fill=(247, 190, 60))
+    d.line([cx + r, cy - 8, x + 150, cy - 8], fill=(60, 90, 130), width=1)
+    d.line([x + 150, cy - 8, x + 150, cy - 16], fill=(60, 90, 130),
+           width=1)
+    d.line([cx + r, cy + 8, x + 150, cy + 8], fill=(60, 90, 130), width=1)
+    d.line([x + 150, cy + 8, x + 150, cy + 16], fill=(60, 90, 130),
+           width=1)
     _chip(d, x + 140, y + 4, "15% MAX", 8, fg=(255, 255, 255),
           bg=GREEN)
 
@@ -505,33 +665,56 @@ def ill_stocks(d, x, y, w, h):
 
 def ill_court(d, x, y, w, h):
     d.rectangle([x, y, x + w, y + h], fill=(223, 232, 242))
-    d.polygon([(x + 40, y + 12), (x + 110, y + 2), (x + 180, y + 12)],
+    d.polygon([(x + 36, y + 12), (x + 98, y + 2), (x + 160, y + 12)],
               fill=(31, 58, 95))
-    for cx in (56, 82, 108, 134, 160):
+    for cx in (52, 74, 96, 118, 140):
         d.rectangle([x + cx, y + 14, x + cx + 6, y + 42],
                     fill=(245, 245, 240))
-    d.rectangle([x + 40, y + 42, x + 180, y + 48], fill=(31, 58, 95))
-    # Oil derrick crossed out on the right.
-    d.line([x + 196, y + 12, x + 196, y + 48], fill=(60, 60, 60),
+    d.rectangle([x + 36, y + 42, x + 160, y + 48], fill=(31, 58, 95))
+    # Oil derrick crossed out, kept inside the box.
+    d.line([x + 176, y + 14, x + 176, y + 48], fill=(60, 60, 60),
            width=2)
-    d.line([x + 188, y + 20, x + 204, y + 48], fill=(60, 60, 60),
+    d.line([x + 168, y + 22, x + 184, y + 48], fill=(60, 60, 60),
            width=2)
-    d.ellipse([x + 186, y + 8, x + 206, y + 28], outline=REDK, width=3)
-    d.line([x + 188, y + 26, x + 204, y + 10], fill=REDK, width=3)
+    d.ellipse([x + 166, y + 10, x + 186, y + 30], outline=REDK, width=3)
+    d.line([x + 168, y + 28, x + 184, y + 12], fill=REDK, width=3)
     _chip(d, x + 30, y + 4, "SUPREME COURT", 8, fg=(31, 58, 95),
           bg=(255, 255, 255))
 
 
 def ill_pact(d, x, y, w, h):
-    d.rectangle([x, y, x + w, y + h], fill=(178, 214, 232))
-    # Island with two flags.
-    d.ellipse([x + 60, y + 34, x + 190, y + h], fill=(120, 170, 110))
-    for fx, c1, c2 in ((x + 84, (30, 60, 120), (255, 255, 255)),
-                       (x + 150, (20, 120, 110), (255, 215, 0))):
-        d.rectangle([fx, y + 8, fx + 2, y + 34], fill=(60, 60, 60))
-        d.rectangle([fx + 2, y + 8, fx + 22, y + 18], fill=c1)
-        d.rectangle([fx + 2, y + 18, fx + 22, y + 22], fill=c2)
-    d.ellipse([x + 96, y + 40, x + 104, y + 48], fill=(255, 255, 255))
+    d.rectangle([x, y, x + w, y + h], fill=(240, 236, 220))
+    # Treaty document with a red seal.
+    d.rectangle([x + 12, y + 8, x + 92, y + 48], fill=(255, 255, 255),
+                outline=(150, 150, 150))
+    d.polygon([(x + 92, y + 8), (x + 92, y + 20), (x + 80, y + 8)],
+              fill=(220, 220, 220))
+    for ly in (16, 24, 32):
+        d.line([x + 20, y + ly, x + 70, y + ly], fill=(120, 120, 120),
+               width=1)
+    d.ellipse([x + 72, y + 36, x + 84, y + 48], fill=REDK)
+    d.text((x + 78, y + 42), "S", font=font(SANS_B, 7),
+           fill=(255, 255, 255), anchor="mm")
+    # Solomon Islands flag on its pole.
+    d.rectangle([x + 118, y + 8, x + 120, y + 48], fill=(60, 60, 60))
+    d.rectangle([x + 120, y + 10, x + 148, y + 28], fill=(30, 80, 160))
+    d.line([x + 120, y + 28, x + 148, y + 10], fill=(247, 190, 60),
+           width=2)
+    for sx, sy in ((126, 15), (136, 13), (142, 20)):
+        d.ellipse([x + sx - 1, y + sy - 1, x + sx + 1, y + sy + 1],
+                  fill=(247, 190, 60))
+    d.rectangle([x + 120, y + 24, x + 148, y + 28], fill=(20, 120, 80))
+    # Australian flag on its pole.
+    d.rectangle([x + 158, y + 8, x + 160, y + 48], fill=(60, 60, 60))
+    d.rectangle([x + 160, y + 10, x + 188, y + 28], fill=(30, 60, 140))
+    d.rectangle([x + 160, y + 10, x + 172, y + 19], fill=(255, 255, 255))
+    d.line([x + 160, y + 14, x + 172, y + 14], fill=(200, 40, 40),
+           width=2)
+    d.line([x + 166, y + 10, x + 166, y + 19], fill=(200, 40, 40),
+           width=2)
+    for sx, sy in ((180, 15), (184, 22)):
+        d.ellipse([x + sx - 1, y + sy - 1, x + sx + 1, y + sy + 1],
+                  fill=(255, 255, 255))
     _chip(d, x + 30, y + 4, "SIGNED", 8)
 
 
@@ -706,8 +889,10 @@ def draw_datecheck(d):
     for col, items in ((16, DATECHECK_LEFT), (516, DATECHECK_RIGHT)):
         yy = 914
         for item in items:
-            d.text((col, yy), "× " + item, font=f, fill=INK)
-            yy += 11
+            # Word-boundary wrap only; every item fits on one line.
+            for ln in wrap(d, "× " + item, f, 492):
+                d.text((col, yy), ln, font=f, fill=INK)
+                yy += 11
 
 
 def draw_footer(d):
